@@ -97,7 +97,7 @@ def pull_process_and_push_data(device, device_attendance_logs=None):
                     break
 
     for device_attendance_log in device_attendance_logs[index_of_last+1:]:
-        erpnext_status_code, erpnext_message = send_to_erpnext(device_attendance_log['user_id'], device_attendance_log['timestamp'], device['device_id'], device['punch_direction'])
+        erpnext_status_code, erpnext_message = send_to_erpnext_10(device_attendance_log['user_id'], device_attendance_log['timestamp'], device['device_id'], device['punch_direction'])
         if erpnext_status_code == 200:
             attendance_success_logger.info("\t".join([erpnext_message, str(device_attendance_log['uid']),
                 str(device_attendance_log['user_id']), str(device_attendance_log['timestamp'].timestamp()),
@@ -142,6 +142,33 @@ def get_all_attendance_from_device(ip, port=4370, timeout=30, device_id=None, cl
             conn.disconnect()
     return list(map(lambda x: x.__dict__, attendances))
 
+def send_to_erpnext_10(employee_field_value, timestamp, device_id=None, log_type=None):
+    """
+    Example: send_to_erpnext('12349',datetime.datetime.now(),'HO1','IN')
+    """
+    url = config.ERPNEXT_URL + "/api/method/charity.hr_services.doctype.employee_checkin.employee_checkin.add_log_based_on_employee_field"
+    headers = {
+        'Accept': 'application/json'
+    }
+    data = {
+        'employee_field_value' : employee_field_value,
+        'timestamp' : timestamp.__str__(),
+        'device_id' : device_id,
+        'log_type' : log_type,
+        'pwd':config.PWD
+    }
+    response = requests.request("POST", url, headers=headers, data=data)
+    print(response.content)
+    if response.status_code == 200:
+        return 200, json.loads(response._content.decode('utf-8'))['message']['name']
+    else:
+        if EMPLOYEE_NOT_FOUND_ERROR_MESSAGE in json.loads(json.loads(response._content.decode('utf-8'))['exc'])[0]:
+            error_logger.error('\t'.join(['Error during ERPNext API Call.', str(employee_field_value), str(timestamp.timestamp()), str(device_id), str(log_type), json.loads(json.loads(response._content.decode('utf-8'))['exc'])[0]]))
+            # TODO: send email?
+        else:
+            error_logger.error('\t'.join(['Error during ERPNext API Call.', str(employee_field_value), str(timestamp.timestamp()), str(device_id), str(log_type), json.loads(json.loads(response._content.decode('utf-8'))['exc'])[0]]))
+        return response.status_code, json.loads(json.loads(response._content.decode('utf-8'))['exc'])[0]
+
 
 def send_to_erpnext(employee_field_value, timestamp, device_id=None, log_type=None):
     """
@@ -160,14 +187,14 @@ def send_to_erpnext(employee_field_value, timestamp, device_id=None, log_type=No
     }
     response = requests.request("POST", url, headers=headers, data=data)
     if response.status_code == 200:
-        return 200, json.loads(response._content)['message']['name']
+        return 200, json.loads(response._content.decode('utf-8'))['message']['name']
     else:
-        if EMPLOYEE_NOT_FOUND_ERROR_MESSAGE in json.loads(json.loads(response._content)['exc'])[0]:
-            error_logger.error('\t'.join(['Error during ERPNext API Call.', str(employee_field_value), str(timestamp.timestamp()), str(device_id), str(log_type), json.loads(json.loads(response._content)['exc'])[0]]))
+        if EMPLOYEE_NOT_FOUND_ERROR_MESSAGE in json.loads(json.loads(response._content.decode('utf-8'))['exc'])[0]:
+            error_logger.error('\t'.join(['Error during ERPNext API Call.', str(employee_field_value), str(timestamp.timestamp()), str(device_id), str(log_type), json.loads(json.loads(response._content.decode('utf-8'))['exc'])[0]]))
             # TODO: send email?
         else:
-            error_logger.error('\t'.join(['Error during ERPNext API Call.', str(employee_field_value), str(timestamp.timestamp()), str(device_id), str(log_type), json.loads(json.loads(response._content)['exc'])[0]]))
-        return response.status_code, json.loads(json.loads(response._content)['exc'])[0]
+            error_logger.error('\t'.join(['Error during ERPNext API Call.', str(employee_field_value), str(timestamp.timestamp()), str(device_id), str(log_type), json.loads(json.loads(response._content.decode('utf-8'))['exc'])[0]]))
+        return response.status_code, json.loads(json.loads(response._content.decode('utf-8'))['exc'])[0]
 
 
 def get_last_line_from_file(file):
